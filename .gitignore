@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+data/faiss.index
+data/metadata.pkl
+.DS_Store
+*.egg-info/
+dist/
+build/
+.pytest_cache/
