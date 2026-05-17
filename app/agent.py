@@ -183,6 +183,7 @@ def _conversation_text(messages: list[Message]) -> str:
 def _user_text(messages: list[Message]) -> str:
     return " ".join(m.content for m in messages if m.role == "user")
 
+
 def _is_off_topic(messages: list[Message]) -> bool:
     """True if the latest user message is clearly off-topic (legal, HR advice, non-SHL)."""
     last = messages[-1].content.lower() if messages else ""
@@ -329,9 +330,11 @@ def _call_llm(client: genai.Client, prompt: str) -> str:
             system_instruction=SYSTEM_PROMPT,
             temperature=0.1,
             max_output_tokens=2048,
-            response_mime_type="application/json",   
+            response_mime_type="application/json",
         ),
     )
+    # response.text is None when Gemini blocks the response (safety filter).
+    # Return a valid refuse JSON so the agent handles it gracefully.
     if not response.text:
         return '{"action":"refuse","reply":"I can only help with selecting SHL assessments. I\'m not able to answer legal or compliance questions — please consult your legal team.","recommendations":[],"end_of_conversation":false}'
     return response.text
@@ -383,24 +386,24 @@ def run_agent(request: ChatRequest, retriever: CatalogRetriever) -> ChatResponse
     # ── Build turn hint ────────────────────────────────────────────────
     context_ok = _has_enough_context(messages)
 
-    elif context_ok:
-        # Any turn with sufficient context → recommend immediately
+    if turn >= MAX_TURNS - 2:
         turn_hint = (
-            "\n✅ The user has provided a concrete job role or skill. "
-            "ACTION: recommend now — do NOT ask another clarifying question."
+            "\n[FINAL TURNS] You MUST provide recommendations now. "
+            "Do not ask another question."
         )
-    elif context_ok and turn >= 3:
+    elif context_ok:
         turn_hint = (
-            "\n✅ The user has provided a job role. "
-            "ACTION: recommend now — do NOT ask another question."
+            "\n[CONTEXT OK] The user has provided a concrete job role or skill. "
+            "ACTION: recommend now — do NOT ask another clarifying question."
         )
     elif not context_ok and turn <= 1:
         turn_hint = (
-            "\n💡 No job role provided yet. Ask ONE clarifying question."
+            "\n[CLARIFY] No job role provided yet. Ask ONE clarifying question."
         )
     else:
         turn_hint = ""
 
+    # ── Pre-LLM guardrail: refuse clearly off-topic queries immediately ──
     if _is_off_topic(messages):
         return ChatResponse(
             reply=(
