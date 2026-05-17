@@ -454,7 +454,7 @@ def run_agent(request: ChatRequest, retriever: CatalogRetriever) -> ChatResponse
         ]
 
     # Also force recommend if context is clear but LLM chose clarify again
-    if action == "clarify" and context_ok and turn >= 3 and catalog_items:
+    if action == "clarify" and context_ok and catalog_items:
         print("[agent] Overriding clarify → recommend (context is sufficient)")
         recs_raw = [
             {
