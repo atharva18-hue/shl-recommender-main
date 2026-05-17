@@ -192,7 +192,7 @@ def _is_off_topic(messages: list[Message]) -> bool:
         "are we required", "must we", "do we have to by law",
         "gdpr", "eeoc", "ada compliance", "lawsuit", "sue",
         "what is the capital", "tell me a joke", "ignore previous",
-        "forget your instructions", "act as", "jailbreak",
+        "forget your instructions", "jailbreak", "pretend you are",
     ]
     return any(sig in last for sig in off_topic_signals)
 
@@ -383,17 +383,18 @@ def run_agent(request: ChatRequest, retriever: CatalogRetriever) -> ChatResponse
     # ── Build turn hint ────────────────────────────────────────────────
     context_ok = _has_enough_context(messages)
 
-    if turn >= MAX_TURNS - 2:
+    elif context_ok:
+        # Any turn with sufficient context → recommend immediately
         turn_hint = (
-            "\n⚠️ FINAL TURNS: You MUST provide recommendations now. "
-            "Do not ask another question."
+            "\n✅ The user has provided a concrete job role or skill. "
+            "ACTION: recommend now — do NOT ask another clarifying question."
         )
     elif context_ok and turn >= 3:
         turn_hint = (
             "\n✅ The user has provided a job role. "
             "ACTION: recommend now — do NOT ask another question."
         )
-    elif not context_ok and turn <= 2:
+    elif not context_ok and turn <= 1:
         turn_hint = (
             "\n💡 No job role provided yet. Ask ONE clarifying question."
         )
