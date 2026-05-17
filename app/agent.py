@@ -183,6 +183,19 @@ def _conversation_text(messages: list[Message]) -> str:
 def _user_text(messages: list[Message]) -> str:
     return " ".join(m.content for m in messages if m.role == "user")
 
+def _is_off_topic(messages: list[Message]) -> bool:
+    """True if the latest user message is clearly off-topic (legal, HR advice, non-SHL)."""
+    last = messages[-1].content.lower() if messages else ""
+    off_topic_signals = [
+        "legally required", "legal requirement", "legal obligation",
+        "law require", "required by law", "compliance require",
+        "are we required", "must we", "do we have to by law",
+        "gdpr", "eeoc", "ada compliance", "lawsuit", "sue",
+        "what is the capital", "tell me a joke", "ignore previous",
+        "forget your instructions", "act as", "jailbreak",
+    ]
+    return any(sig in last for sig in off_topic_signals)
+
 
 def _has_enough_context(messages: list[Message]) -> bool:
     """True if the conversation contains a concrete job role or skill — safe to recommend.
@@ -386,6 +399,18 @@ def run_agent(request: ChatRequest, retriever: CatalogRetriever) -> ChatResponse
         )
     else:
         turn_hint = ""
+
+    if _is_off_topic(messages):
+        return ChatResponse(
+            reply=(
+                "That's outside what I can help with — I'm not able to advise on legal "
+                "or regulatory obligations. Your legal or compliance team is the right "
+                "resource for that. I'm happy to recommend SHL assessments for a specific role "
+                "if you'd like to share the job details."
+            ),
+            recommendations=[],
+            end_of_conversation=False,
+        )
 
     # ── Build prompt ───────────────────────────────────────────────────
     history = _conversation_text(messages)
