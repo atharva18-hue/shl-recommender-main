@@ -54,4 +54,4 @@ Turn counting uses `role == "user"` messages only — a bug with total message c
 
 ## AI Tools Used
 
-Cursor (agentic coding) was used for: scaffolding the project structure, writing and refining the system prompt, implementing the retrieval module, building the test suite, and debugging turn cap and JSON truncation issues. All design decisions, domain anchor mappings, and evaluation against the 10 sample traces were done manually.
+**Cursor** (agentic coding IDE) was used to accelerate implementation: generating boilerplate, writing and iterating on the retrieval module, system prompt, and test suite. All architectural decisions, domain anchor mappings, trace analysis, debugging direction, and evaluation against the 10 sample conversations were driven manually.
