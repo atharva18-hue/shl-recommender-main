@@ -360,12 +360,15 @@ def run_agent(request: ChatRequest, retriever: CatalogRetriever) -> ChatResponse
     # Always inject universal anchor assessments so the LLM can recommend them
     # (and validation passes) even when retrieval doesn't surface them.
     existing_names = {item["name"].lower() for item in catalog_items}
+    injected_anchors: list[dict] = []  # track injected items for override fallback
+
     for anchor_name in ANCHOR_NAMES:
         if anchor_name.lower() not in existing_names:
             found = retriever.get_by_name(anchor_name)
             if found:
                 catalog_items.append(found)
                 existing_names.add(found["name"].lower())
+                injected_anchors.append(found)
 
     # Inject domain-specific anchors based on user query keywords.
     query_lower = raw_query.lower()
@@ -377,6 +380,7 @@ def run_agent(request: ChatRequest, retriever: CatalogRetriever) -> ChatResponse
                     if found:
                         catalog_items.append(found)
                         existing_names.add(found["name"].lower())
+                        injected_anchors.append(found)
 
     catalog_snippet = (
         retriever.format_for_prompt(catalog_items)
@@ -453,16 +457,23 @@ def run_agent(request: ChatRequest, retriever: CatalogRetriever) -> ChatResponse
             for item in catalog_items[:5]
         ]
 
-    # Also force recommend if context is clear but LLM chose clarify again
+    # Also force recommend if context is clear but LLM chose clarify again.
+    # Use domain anchors first so role-specific items are included.
     if action == "clarify" and context_ok and catalog_items:
-        print("[agent] Overriding clarify → recommend (context is sufficient)")
+        print("[agent] Overriding clarify -> recommend (context is sufficient)")
+        seen_names: set[str] = set()
+        override_items: list[dict] = []
+        for item in injected_anchors + catalog_items:
+            if item["name"] not in seen_names and len(override_items) < 8:
+                seen_names.add(item["name"])
+                override_items.append(item)
         recs_raw = [
             {
                 "name": item["name"],
                 "url": item["url"],
                 "test_type": " ".join(item.get("test_types", [])),
             }
-            for item in catalog_items[:5]
+            for item in override_items
         ]
         action = "recommend"
         top_names = ", ".join(r["name"] for r in recs_raw[:3])
