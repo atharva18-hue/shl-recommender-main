@@ -38,31 +38,37 @@ ANCHOR_NAMES: list[str] = [
 # Dict maps a keyword (in user text) → list of assessment names to inject.
 DOMAIN_ANCHORS: dict[str, list[str]] = {
     # Contact centre / call centre (C3)
-    "contact center": ["SVAR - Spoken English (US)  (New)", "Contact Center Call Simulation (New)", "Customer Service Phone Simulation"],
-    "contact centre": ["SVAR - Spoken English (US)  (New)", "Contact Center Call Simulation (New)", "Customer Service Phone Simulation"],
-    "call center": ["SVAR - Spoken English (US)  (New)", "Contact Center Call Simulation (New)", "Customer Service Phone Simulation"],
-    "call centre": ["SVAR - Spoken English (US)  (New)", "Contact Center Call Simulation (New)", "Customer Service Phone Simulation"],
+    "contact center": ["SVAR - Spoken English (US)  (New)", "Contact Center Call Simulation (New)", "Customer Service Phone Simulation", "Entry Level Customer Serv-Retail & Contact Center"],
+    "contact centre": ["SVAR - Spoken English (US)  (New)", "Contact Center Call Simulation (New)", "Customer Service Phone Simulation", "Entry Level Customer Serv-Retail & Contact Center"],
+    "call center": ["SVAR - Spoken English (US)  (New)", "Contact Center Call Simulation (New)", "Customer Service Phone Simulation", "Entry Level Customer Serv-Retail & Contact Center"],
+    "call centre": ["SVAR - Spoken English (US)  (New)", "Contact Center Call Simulation (New)", "Customer Service Phone Simulation", "Entry Level Customer Serv-Retail & Contact Center"],
     "customer service": ["Customer Service Phone Simulation", "Contact Center Call Simulation (New)"],
+    "inbound": ["SVAR - Spoken English (US)  (New)", "Contact Center Call Simulation (New)"],
     # Sales / restructuring / talent audit (C5)
     "sales": ["Sales Transformation 2.0 - Individual Contributor", "OPQ MQ Sales Report", "Global Skills Assessment", "Global Skills Development Report"],
-    "restructur": ["Global Skills Assessment", "Global Skills Development Report", "Sales Transformation 2.0 - Individual Contributor"],
-    "reskill": ["Global Skills Assessment", "Global Skills Development Report"],
+    "restructur": ["Global Skills Assessment", "Global Skills Development Report", "Sales Transformation 2.0 - Individual Contributor", "OPQ MQ Sales Report"],
+    "reskill": ["Global Skills Assessment", "Global Skills Development Report", "OPQ MQ Sales Report"],
     "talent audit": ["Global Skills Assessment", "Global Skills Development Report"],
+    "re-skill": ["Global Skills Assessment", "Global Skills Development Report"],
     # Safety / industrial (C6)
     "safety": ["Dependability and Safety Instrument (DSI)", "Manufac. & Indust. - Safety & Dependability 8.0", "Workplace Health and Safety (New)"],
     "plant operator": ["Dependability and Safety Instrument (DSI)", "Manufac. & Indust. - Safety & Dependability 8.0", "Workplace Health and Safety (New)"],
-    "industrial": ["Manufac. & Indust. - Safety & Dependability 8.0", "Dependability and Safety Instrument (DSI)"],
+    "plant": ["Dependability and Safety Instrument (DSI)", "Manufac. & Indust. - Safety & Dependability 8.0", "Workplace Health and Safety (New)"],
+    "industrial": ["Manufac. & Indust. - Safety & Dependability 8.0", "Dependability and Safety Instrument (DSI)", "Workplace Health and Safety (New)"],
     "chemical": ["Dependability and Safety Instrument (DSI)", "Manufac. & Indust. - Safety & Dependability 8.0", "Workplace Health and Safety (New)"],
+    "procedure compliance": ["Dependability and Safety Instrument (DSI)", "Manufac. & Indust. - Safety & Dependability 8.0"],
+    "reliability": ["Dependability and Safety Instrument (DSI)"],
     # Healthcare admin (C7)
     "healthcare": ["HIPAA (Security)", "Medical Terminology (New)", "Dependability and Safety Instrument (DSI)", "Microsoft Word 365 - Essentials (New)"],
     "hipaa": ["HIPAA (Security)", "Medical Terminology (New)"],
     "patient": ["HIPAA (Security)", "Medical Terminology (New)", "Dependability and Safety Instrument (DSI)"],
     "medical": ["Medical Terminology (New)", "HIPAA (Security)"],
     # Office / admin (C8)
-    "excel": ["MS Excel (New)", "Microsoft Excel 365 (New)"],
-    "word": ["MS Word (New)", "Microsoft Word 365 (New)"],
+    "excel": ["MS Excel (New)", "Microsoft Excel 365 (New)", "Microsoft Excel 365 - Essentials (New)"],
+    "word": ["MS Word (New)", "Microsoft Word 365 (New)", "Microsoft Word 365 - Essentials (New)"],
     "microsoft office": ["MS Excel (New)", "MS Word (New)", "Microsoft Excel 365 (New)", "Microsoft Word 365 (New)"],
     "admin assistant": ["MS Excel (New)", "MS Word (New)", "Microsoft Excel 365 (New)", "Microsoft Word 365 (New)"],
+    "screen admin": ["MS Excel (New)", "MS Word (New)"],
     # Technical / developer (C2, C9)
     "java": ["Core Java (Advanced Level) (New)", "Core Java (Entry Level) (New)"],
     "spring": ["Spring (New)"],
@@ -183,6 +189,7 @@ def _conversation_text(messages: list[Message]) -> str:
 def _user_text(messages: list[Message]) -> str:
     return " ".join(m.content for m in messages if m.role == "user")
 
+
 def _is_off_topic(messages: list[Message]) -> bool:
     """True if the latest user message is clearly off-topic (legal, HR advice, non-SHL)."""
     last = messages[-1].content.lower() if messages else ""
@@ -213,13 +220,17 @@ def _has_enough_context(messages: list[Message]) -> bool:
         "finance", "financial", "accounting", "accountant",
         "hr ", "human resource", "recruit",
         "customer service", "contact center", "contact centre", "call center", "call centre",
+        "agent", "operator",
         "software", "product manager", "product owner",
         "marketing", "devops", "qa ", "tester", "programmer",
         "nurse", "doctor", "healthcare", "medical",
         "banking", "insurance", "retail",
-        "warehouse", "manufacturing", "plant operator",
+        "warehouse", "manufacturing", "plant operator", "plant",
         "graduate trainee", "management trainee",
         "admin assistant", "administrative",
+        "safety", "chemical facility", "chemical plant",
+        "reskill", "restructur", "talent audit",
+        "excel", "word", "microsoft office",
     ]
     return any(sig in text for sig in role_signals)
 
@@ -329,9 +340,11 @@ def _call_llm(client: genai.Client, prompt: str) -> str:
             system_instruction=SYSTEM_PROMPT,
             temperature=0.1,
             max_output_tokens=2048,
-            response_mime_type="application/json",   
+            response_mime_type="application/json",
         ),
     )
+    # response.text is None when Gemini blocks the response (safety filter).
+    # Return a valid refuse JSON so the agent handles it gracefully.
     if not response.text:
         return '{"action":"refuse","reply":"I can only help with selecting SHL assessments. I\'m not able to answer legal or compliance questions — please consult your legal team.","recommendations":[],"end_of_conversation":false}'
     return response.text
@@ -400,6 +413,7 @@ def run_agent(request: ChatRequest, retriever: CatalogRetriever) -> ChatResponse
     else:
         turn_hint = ""
 
+    # ── Pre-LLM guardrail: refuse clearly off-topic queries immediately ──
     if _is_off_topic(messages):
         return ChatResponse(
             reply=(
