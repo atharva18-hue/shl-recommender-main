@@ -316,9 +316,11 @@ def _call_llm(client: genai.Client, prompt: str) -> str:
             system_instruction=SYSTEM_PROMPT,
             temperature=0.1,
             max_output_tokens=2048,
-            response_mime_type="application/json",   # force JSON output
+            response_mime_type="application/json",   
         ),
     )
+    if not response.text:
+        return '{"action":"refuse","reply":"I can only help with selecting SHL assessments. I\'m not able to answer legal or compliance questions — please consult your legal team.","recommendations":[],"end_of_conversation":false}'
     return response.text
 
 
