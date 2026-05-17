@@ -8,6 +8,6 @@ services:
       - key: GOOGLE_API_KEY
         sync: false       # set manually in Render dashboard
       - key: GEMINI_MODEL
-        value: gemini-flash-lite-latest
+        value: gemini-2.5-flash
     healthCheckPath: /health
     autoDeploy: true
